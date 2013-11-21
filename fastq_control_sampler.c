@@ -1,13 +1,31 @@
+/* fastq_control_sampler
+ * 
+ * Copyright 2013 adrien <adrien.leger@gmail.com>
+ * 
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as 
+ * published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA 02110-1301, USA.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
 #include <ctype.h>
-#include "dataset_test_generator.h"
-
+#include "fastq_control_sampler.h"
 
 ////////////////////////////////////////////////////////////////////////
-//  MAIN                                                              //
+// main                                                             
 ////////////////////////////////////////////////////////////////////////
 int main(int argc, char** argv) {
 
@@ -18,7 +36,7 @@ int main(int argc, char** argv) {
 	// Import the differents reference sequence contained in fasta files
 	list_seq = create_ref_list (argv, argc-1);
 	// Print valued contained in the list
-	print_list (list_seq);
+	/// print_list (list_seq);
 	// Generate fastq files R1 and R2 from the reference sequences
 	generate_fastq (list_seq);
 	
@@ -26,19 +44,21 @@ int main(int argc, char** argv) {
 }
  
 ////////////////////////////////////////////////////////////////////////
-//  USAGE                                                             //
+// usage                                                            
 //////////////////////////////////////////////////////////////////////// 
 void usage (char* nom_prog, int argc)
 {
 	if (argc < 2)
 	{
 		fprintf (stderr, "Usage : %s [ref_1.fa] [ref_2.fa] ... [ref_n.fa]\n", nom_prog);
+		fprintf (stderr, "'N' containing sequences will be excluded from the analyses");
+		fprintf (stderr, "Unless the variable MASK_REPEAT is set to 0, lowercase characters will also be excluded\n");
 		exit(EXIT_FAILURE);
 	}
 }
 
 ////////////////////////////////////////////////////////////////////////
-// create_ref_list = import fasta ref genomes within a structure tab  //
+// create_ref_list = import fasta ref genomes within a structure tab
 ////////////////////////////////////////////////////////////////////////
 
 T_info* create_ref_list (char** argv, int nb_fasta)
@@ -65,24 +85,25 @@ T_info* create_ref_list (char** argv, int nb_fasta)
 	// DISCOVERY AND ADDITION OF REFERENCES CONTAINED IN THE REFERENCE FASTA FILES
 	for (i = 0; i < nb_fasta; i++) // for each reference fasta file
 	{
-		printf ("\nProcessing File %s\n\n", argv[i+1]);
-		file = init_file_ptr( argv[i+1], "r");
+		printf ("Processing File %s\n", argv[i+1]);
+		file = init_file_ptr( argv[i+1], "r"); // open fasta the current file
 		
-		n = nref(file, argv[i+1]);
-		for (j = 0; j < n ; j++)
+		n = nref(file); // output the number of ref seq
+		printf("\tThe file contain %d reference sequence(s)\n", n);
+		for (j = 0; j < n ; j++) // for each reference sequences within the current file
 
 		{
-			// Creating new cell
+			// Create a new cell
 			ptrj = create_info_cell();
-			// Filling fields of the new cell
+			// Fill fields of the new cell
 			ptrj -> size_name = (evaluate_name_size (file));
 			ptrj -> name = output_name(file, ptrj -> size_name);
-			printf ("Importation of the reference sequence : %s\n", ptrj -> name);
+			printf ("\t\tImportation of the reference sequence : %s\n", ptrj -> name);
 			ptrj -> size_seq = (evaluate_seq_size (file));
 			verify_ref_size (ptrj -> size_seq, i);
 			ptrj -> seq = output_seq(file, ptrj -> size_seq);
 			ptrj -> next = NULL;
-			// Linking the new cell to the previous one and moving forward the active cell pointer
+			// Link the new cell to the previous one and push forward the active cell pointer
 			ptri -> next = ptrj;
 			ptri = ptrj;
 		}
@@ -92,25 +113,24 @@ T_info* create_ref_list (char** argv, int nb_fasta)
 }
 
 ////////////////////////////////////////////////////////////////////////
-// nref = retourne le nombre de séquence de ref dans un fasta         //
+// nref = retourne le nombre de séquence de ref dans un fasta
 ////////////////////////////////////////////////////////////////////////
 
-int nref (FILE* file, char* filename)
+int nref (FILE* file)
 {
 	int c = 0;
-	int nref = 0;
+	int n = 0;
 	
 	while ((c = fgetc(file)) != EOF) // Pas trés econome en resource je suis sur qu'on peu se contenter du seul 1er char...
 		if ( c== '>')
-			nref++;
-	
-	printf("\nThe %s file contains %d reference sequence(s)\n", filename, nref);
+			n++;
+
 	rewind (file);
-	return nref;
+	return n;
 }
 
 ////////////////////////////////////////////////////////////////////////
-// create_info_cell = create an empty info cell                       //
+// create_info_cell = create an empty info cell
 ////////////////////////////////////////////////////////////////////////
 
 T_info* create_info_cell(void)
@@ -126,7 +146,7 @@ T_info* create_info_cell(void)
 }
 
 ////////////////////////////////////////////////////////////////////////
-// evaluate_name_size AND evaluate_seq_size                           //
+// evaluate_name_size AND evaluate_seq_size determine the size of a string in a file
 ////////////////////////////////////////////////////////////////////////
 
 int evaluate_name_size (FILE* file)
@@ -140,7 +160,6 @@ int evaluate_name_size (FILE* file)
 		if (isprint(c) && c != '>')// count characters excluding > and non printable
 			i++;
 
-	printf ("\n");
 	fseek (file, position, SEEK_SET); // restore the position of the file ptr
 	return i;
 }
@@ -163,7 +182,7 @@ int evaluate_seq_size (FILE* file)
 }
 
 ////////////////////////////////////////////////////////////////////////
-// output_name AND output_seq                                         //
+// output_name AND output_seq return the string in the file
 ////////////////////////////////////////////////////////////////////////
 
 char* output_name (FILE* file, int size)
@@ -202,15 +221,30 @@ char* output_seq (FILE* file, int size)
 		exit (EXIT_FAILURE);
 	}
 	
-	while (((c = fgetc(file)) != '>') && (c != EOF)) // continue until the next sequence or the end of file
+	if (MASK_REPEAT == 1) // in case of masking repeats
 	{
-		if (isalpha(c)) // count only alphabetical characters
+		while (((c = fgetc(file)) != '>') && (c != EOF)) // continue until the next sequence or the end of file
 		{
-			if islower(c)
-				seq[i] = 'N'; // hard mask repeated sequences
-			else
+			if (isalpha(c)) // count only alphabetical characters
+			{
+				if islower(c)
+					seq[i] = 'N'; // hard mask repeated sequences
+				else
+					seq[i] = c;
+				i++;
+			}
+		}
+	}
+	
+	else
+	{
+		while (((c = fgetc(file)) != '>') && (c != EOF)) // continue until the next sequence or the end of file
+		{
+			if (isalpha(c)) // count only alphabetical characters
+			{
 				seq[i] = c;
-			i++;
+				i++;
+			}
 		}
 	}
 
@@ -218,10 +252,8 @@ char* output_seq (FILE* file, int size)
 	return seq;
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////
-// verify_ref_size = evaluate if ref size is long enough              //
+// verify_ref_size = evaluate if ref size is long enough
 ////////////////////////////////////////////////////////////////////////
 
 void verify_ref_size (int size, int ref_nb)
@@ -235,7 +267,7 @@ void verify_ref_size (int size, int ref_nb)
 }
 
 ////////////////////////////////////////////////////////////////////////
-// generate_random_ref = generate a random DNA string of a given size //
+// generate_random_ref = generate a random DNA string of a given size
 ////////////////////////////////////////////////////////////////////////
 
 char* generate_random_ref (int size)
@@ -255,7 +287,7 @@ char* generate_random_ref (int size)
 }
 
 ////////////////////////////////////////////////////////////////////////
-// print_tab_info													  //
+// print_tab_info												
 ////////////////////////////////////////////////////////////////////////
 
 void print_list (T_info* list_head)
@@ -267,8 +299,8 @@ void print_list (T_info* list_head)
 		printf("\nSize Name : %d", ptri -> size_name);
 		printf("\n%s", ptri -> name);
 		printf("\nSize Seq: %d", ptri -> size_seq);	
-///		printf("\n%s\n", ptri -> seq);
-		printf("\n");
+		printf("\n%s\n", ptri -> seq);
+		printf("\n\n");
 		
 		ptri = ptri -> next;
 		
@@ -277,46 +309,39 @@ void print_list (T_info* list_head)
 }
 
 ////////////////////////////////////////////////////////////////////////
-// generate_fastq = generate fastq pairs from ref genomes + scramble  //
+// generate_fastq = generate fastq pairs from ref genomes + scramble
 ////////////////////////////////////////////////////////////////////////
- 
 void generate_fastq (T_info* list_head)
 {
-	int j, k, k1, k2;
-	int size_frag;
-	int pos_init;
-	FILE* file1 = init_file_ptr( "R1.fastq", "w"); // Fichier pour liste read R1
-	FILE* file2 = init_file_ptr( "R2.fastq", "w"); // Fichier pour liste read R1
-	
+	int i,j;
+	FILE* file1 = init_file_ptr( "R1.fastq", "w"); // File for writing forward fastq reads
+	FILE* file2 = init_file_ptr( "R2.fastq", "w"); // File for writing reverse fastq reads
 	T_info* ptri = NULL;
 	ptri = list_head;
+	
 	srand (time(NULL)); // seed value for rand
 		
-	while (ptri != NULL) // Pour chaque reference dans la liste
+	while (ptri != NULL) // For each reference in the list
 	{
-		for (j = 0; j < NB_PAIR_BY_REF; j++)  // Pour n couples par reference
+		printf ("\nProcessing reference %s\n", ptri -> name);
+		
+		for (i = 0; i < NB_PAIR_BY_REF; i++)  // For i couple per reference
 		{
-			fprintf(file1, "@%s:%d\n", ptri -> name, j+1); // ligne de titre du fastq
-			fprintf(file2, "@%s:%d\n", ptri -> name, j+1);
+			printf ("\tPair %d\t", i+1);
+			fprintf(file1, "@%s:%d\n", ptri -> name, i+1); // fastq title line
+			fprintf(file2, "@%s:%d\n", ptri -> name, i+1);
 
-			size_frag = rand() % (SIZE_MAX_SONIC - SIZE_MIN_SONIC) + SIZE_MIN_SONIC; //range SIZE_MIN_SONIC to SIZE_MAX_SONIC
-			pos_init = rand() % (ptri -> size_seq - size_frag); // range from 0 to (size_seq - taille_frag)
-			
-			for (k = 0, k1 = pos_init, k2 = (pos_init + size_frag) ; k < SIZE_READ ; k++, k1++, k2--)  // Pour k positions dans le read
-			{ 
-				fprintf(file1, "%c", ptri -> seq[k1]); 
-				fprintf(file2, "%c", complementary (ptri -> seq[k2]));
-			}
-			
+			generate_sequences (file1, file2, ptri); // generate randomly discovered pairs for each position in the read
+					
 			fprintf(file1, "\n+\n"); // separation sequence and quality score
 			fprintf(file2, "\n+\n");
 			
-			for (k = 0 ; k < SIZE_READ; k++)  // Pour k positions dans le read
+			for (j = 0 ; j < SIZE_READ; j++)  // generate random quality string for each position in the read
 			{ 
-				fprintf(file1, "%c", QUALITY_SCORE [rand() % (strlen(QUALITY_SCORE) - 1)]); // separation sequence and quality score
+				fprintf(file1, "%c", QUALITY_SCORE [rand() % (strlen(QUALITY_SCORE) - 1)]);
 				fprintf(file2, "%c", QUALITY_SCORE [rand() % (strlen(QUALITY_SCORE) - 1)]);
 			}
-			fprintf(file1, "\n"); // saut de ligne pour sequence suivante
+			fprintf(file1, "\n");
 			fprintf(file2, "\n");
 		}
 		ptri = ptri -> next;
@@ -324,6 +349,53 @@ void generate_fastq (T_info* list_head)
 	fclose (file1);
 	fclose (file2);
 }	
+
+////////////////////////////////////////////////////////////////////////
+// generate_sequences = sample paired sequence within a given ref seq
+////////////////////////////////////////////////////////////////////////
+
+void generate_sequences (FILE* file1, FILE* file2, T_info* ptri)
+{
+	int i, j, k;
+	int try = 0;
+	int size_frag;
+	int pos_init;
+	int valid_pair;
+	
+	do // loop while finding a pair of reads with no 'N' in their sequences
+	{
+		try ++;
+		size_frag = rand() % (SIZE_MAX_SONIC - SIZE_MIN_SONIC) + SIZE_MIN_SONIC; //range SIZE_MIN_SONIC to SIZE_MAX_SONIC
+		pos_init = rand() % (ptri -> size_seq - size_frag); // range from 0 to (size_seq - taille_frag)
+		valid_pair = 1;
+		// scan all the lenght of the sequence
+		
+		for (i = 0, j = pos_init, k = (pos_init + size_frag) ; i < SIZE_READ ; i++, j++, k--)
+		{
+			if ((ptri -> seq[j] == 'N') || (ptri -> seq[k] == 'N'))
+			{
+				valid_pair = 0;
+				break;
+			}
+			else
+			{
+				fprintf(file1, "%c", ptri -> seq[j]);
+				fprintf(file2, "%c", complementary (ptri -> seq[k]));
+			}
+		}
+	} while ((valid_pair == 0) && (try < 100));
+	
+	if (try == 100 )
+	{
+		fprintf (stderr, "Attempt to generate a valid pair failed after 1000 tries");
+		fprintf (stderr, "Please modify the options or review the quality of your reference sequences");
+		exit (EXIT_FAILURE);
+	}
+		
+	printf ("Number of tries = %d\n", try);
+	
+	return;
+}
 
 ////////////////////////////////////////////////////////////////////////
 // complementary = return DNA compementary base including IUPAC code  //
