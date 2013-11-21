@@ -27,10 +27,11 @@ const char DNA_BASES [] =  "ACTG";
 ////////////////////////////////////////////////////////////////////////
 
 void usage (char*, int);
-FILE* init_file_ptr (char*, char*);
 T_info* create_ref_list (char**, int);
 void print_list (T_info*);
-void generate_fastq (T_info*, int);
+void generate_fastq (T_info*);
+
+FILE* init_file_ptr (char*, char*);
 char complementary (char);
 char* generate_random_ref (int);
 void verify_ref_size (int, int);

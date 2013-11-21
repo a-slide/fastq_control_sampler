@@ -11,12 +11,16 @@
 ////////////////////////////////////////////////////////////////////////
 int main(int argc, char** argv) {
 
-	T_info* list;
+	T_info* list_seq;
 
+	// Usage test checking parameters
 	usage(argv[0], argc);
-	list = create_ref_list (argv, argc-1);
-	print_list (list);
-	//generate_fastq (tab_info, argc);
+	// Import the differents reference sequence contained in fasta files
+	list_seq = create_ref_list (argv, argc-1);
+	// Print valued contained in the list
+	print_list (list_seq);
+	// Generate fastq files R1 and R2 from the reference sequences
+	generate_fastq (list_seq);
 	
 	return 0;
 }
@@ -254,17 +258,16 @@ char* generate_random_ref (int size)
 // print_tab_info													  //
 ////////////////////////////////////////////////////////////////////////
 
-void print_list (T_info* list)
+void print_list (T_info* list_head)
 {
-	T_info* ptri = NULL;
-	ptri = list;
+	T_info* ptri = list_head;
 	
 	while (ptri != NULL)
 	{
 		printf("\nSize Name : %d", ptri -> size_name);
 		printf("\n%s", ptri -> name);
 		printf("\nSize Seq: %d", ptri -> size_seq);	
-//		printf("\n%s\n", ptri -> seq);
+///		printf("\n%s\n", ptri -> seq);
 		printf("\n");
 		
 		ptri = ptri -> next;
@@ -277,43 +280,46 @@ void print_list (T_info* list)
 // generate_fastq = generate fastq pairs from ref genomes + scramble  //
 ////////////////////////////////////////////////////////////////////////
  
-void generate_fastq (T_info* tab_info, int nb_ref)
+void generate_fastq (T_info* list_head)
 {
-	int i, j, k, k1, k2;
+	int j, k, k1, k2;
 	int size_frag;
 	int pos_init;
 	FILE* file1 = init_file_ptr( "R1.fastq", "w"); // Fichier pour liste read R1
 	FILE* file2 = init_file_ptr( "R2.fastq", "w"); // Fichier pour liste read R1
 	
+	T_info* ptri = NULL;
+	ptri = list_head;
 	srand (time(NULL)); // seed value for rand
 		
-	for (i = 0; i < nb_ref; i++) // Pour chaque reference
+	while (ptri != NULL) // Pour chaque reference dans la liste
 	{
 		for (j = 0; j < NB_PAIR_BY_REF; j++)  // Pour n couples par reference
 		{
-			fprintf(file1, "@%s:%d\n", tab_info[i].name, j+1); // ligne de titre du fastq
-			fprintf(file2, "@%s:%d\n", tab_info[i].name, j+1);
+			fprintf(file1, "@%s:%d\n", ptri -> name, j+1); // ligne de titre du fastq
+			fprintf(file2, "@%s:%d\n", ptri -> name, j+1);
 
 			size_frag = rand() % (SIZE_MAX_SONIC - SIZE_MIN_SONIC) + SIZE_MIN_SONIC; //range SIZE_MIN_SONIC to SIZE_MAX_SONIC
-			pos_init = rand() % (tab_info[i].size_seq - size_frag); // range from 0 to (size_seq - taille_frag)
+			pos_init = rand() % (ptri -> size_seq - size_frag); // range from 0 to (size_seq - taille_frag)
 			
-			for (k = 0, k1 = pos_init, k2 = (pos_init + size_frag) ; k < SIZE_READ ; k++, k1++, k2--)  // Pour n couple par ref
+			for (k = 0, k1 = pos_init, k2 = (pos_init + size_frag) ; k < SIZE_READ ; k++, k1++, k2--)  // Pour k positions dans le read
 			{ 
-				fprintf(file1, "%c", tab_info[i].seq[k1]); 
-				fprintf(file2, "%c", complementary (tab_info[i].seq[k2]));
+				fprintf(file1, "%c", ptri -> seq[k1]); 
+				fprintf(file2, "%c", complementary (ptri -> seq[k2]));
 			}
 			
 			fprintf(file1, "\n+\n"); // separation sequence and quality score
 			fprintf(file2, "\n+\n");
 			
-			for (k = 0 ; k < SIZE_READ; k++)  // Pour n couple par ref
+			for (k = 0 ; k < SIZE_READ; k++)  // Pour k positions dans le read
 			{ 
 				fprintf(file1, "%c", QUALITY_SCORE [rand() % (strlen(QUALITY_SCORE) - 1)]); // separation sequence and quality score
 				fprintf(file2, "%c", QUALITY_SCORE [rand() % (strlen(QUALITY_SCORE) - 1)]);
 			}
 			fprintf(file1, "\n"); // saut de ligne pour sequence suivante
 			fprintf(file2, "\n");
-		}	
+		}
+		ptri = ptri -> next;
 	}
 	fclose (file1);
 	fclose (file2);
