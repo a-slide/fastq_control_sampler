@@ -19,8 +19,8 @@ const int SIZE_MIN_SONIC = 200;
 const int SIZE_MAX_SONIC = 600;
 const int NB_PAIR_BY_REF = 10;
 const int SIZE_OF_RANDOM_REF = 1000;
-const char QUALITY_SCORE [] =  "ABCDEFGHIJ"; // high quality scores
 // Illumina 1.8 = #$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJ
+const char QUALITY_SCORE [] =  "ABCDEFGHIJ"; // high quality scores
 const char DNA_BASES [] =  "ACTG";
 
 ////////////////////////////////////////////////////////////////////////
@@ -42,4 +42,4 @@ int evaluate_name_size (FILE*);
 int evaluate_seq_size (FILE*);
 char* output_name (FILE*, int);
 char* output_seq (FILE*, int);
-void generate_sequences (FILE*, FILE*, T_info*);
+void generate_sequences (FILE*, FILE*, T_info*, int);

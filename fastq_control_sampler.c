@@ -327,11 +327,10 @@ void generate_fastq (T_info* list_head)
 		
 		for (i = 0; i < NB_PAIR_BY_REF; i++)  // For i couple per reference
 		{
-			printf ("\tPair %d\t", i+1);
 			fprintf(file1, "@%s:%d\n", ptri -> name, i+1); // fastq title line
 			fprintf(file2, "@%s:%d\n", ptri -> name, i+1);
-
-			generate_sequences (file1, file2, ptri); // generate randomly discovered pairs for each position in the read
+			
+			generate_sequences (file1, file2, ptri, i+1); // generate randomly discovered pairs for each position in the read
 					
 			fprintf(file1, "\n+\n"); // separation sequence and quality score
 			fprintf(file2, "\n+\n");
@@ -354,7 +353,7 @@ void generate_fastq (T_info* list_head)
 // generate_sequences = sample paired sequence within a given ref seq
 ////////////////////////////////////////////////////////////////////////
 
-void generate_sequences (FILE* file1, FILE* file2, T_info* ptri)
+void generate_sequences (FILE* file1, FILE* file2, T_info* ptri, int numref)
 {
 	int i, j, k;
 	int try = 0;
@@ -387,11 +386,11 @@ void generate_sequences (FILE* file1, FILE* file2, T_info* ptri)
 	
 	if (try == 100 )
 	{
-		fprintf (stderr, "Attempt to generate a valid pair failed after 1000 tries");
-		fprintf (stderr, "Please modify the options or review the quality of your reference sequences");
-		exit (EXIT_FAILURE);
+		fprintf (stderr, "\tAttempt to generate a valid pair failed after 100 tries\n");
+		fprintf (stderr, "\tPlease modify the options or review the quality of this reference sequences\n");
+		exit(EXIT_FAILURE);
 	}
-		
+	printf ("\tPair %d\t", numref);	
 	printf ("Number of tries = %d\n", try);
 	
 	return;
