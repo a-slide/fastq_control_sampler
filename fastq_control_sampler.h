@@ -17,8 +17,9 @@ const int MASK_REPEAT = 1; //if 1 pairs will not be chosen in lowercase sequence
 const int SIZE_READ = 150;
 const int SIZE_MIN_SONIC = 200;
 const int SIZE_MAX_SONIC = 600;
-const int NB_PAIR_BY_REF = 10;
-const int SIZE_OF_RANDOM_REF = 1000;
+const int NB_PAIR_BY_REF = 1000;
+const int SIZE_OF_RANDOM_REF = 100000;
+const int MAX_TRY_VALID_PAIR = 100000;
 // Illumina 1.8 = #$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJ
 const char QUALITY_SCORE [] =  "ABCDEFGHIJ"; // high quality scores
 const char DNA_BASES [] =  "ACTG";

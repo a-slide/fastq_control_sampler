@@ -314,8 +314,8 @@ void print_list (T_info* list_head)
 void generate_fastq (T_info* list_head)
 {
 	int i,j;
-	FILE* file1 = init_file_ptr( "R1.fastq", "w"); // File for writing forward fastq reads
-	FILE* file2 = init_file_ptr( "R2.fastq", "w"); // File for writing reverse fastq reads
+	FILE* file1 = init_file_ptr( "CONTROL_R1.fastq", "w"); // File for writing forward fastq reads
+	FILE* file2 = init_file_ptr( "CONTROL_R2.fastq", "w"); // File for writing reverse fastq reads
 	T_info* ptri = NULL;
 	ptri = list_head;
 	
@@ -327,8 +327,8 @@ void generate_fastq (T_info* list_head)
 		
 		for (i = 0; i < NB_PAIR_BY_REF; i++)  // For i couple per reference
 		{
-			fprintf(file1, "@%s:%d\n", ptri -> name, i+1); // fastq title line
-			fprintf(file2, "@%s:%d\n", ptri -> name, i+1);
+			fprintf(file1, "@CONTROL_%s:%d\n", ptri -> name, i+1); // fastq title line
+			fprintf(file2, "@CONTROL_%s:%d\n", ptri -> name, i+1);
 			
 			generate_sequences (file1, file2, ptri, i+1); // generate randomly discovered pairs for each position in the read
 					
@@ -352,6 +352,11 @@ void generate_fastq (T_info* list_head)
 ////////////////////////////////////////////////////////////////////////
 // generate_sequences = sample paired sequence within a given ref seq
 ////////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void generate_sequences (FILE* file1, FILE* file2, T_info* ptri, int numref)
 {
@@ -382,11 +387,11 @@ void generate_sequences (FILE* file1, FILE* file2, T_info* ptri, int numref)
 				fprintf(file2, "%c", complementary (ptri -> seq[k]));
 			}
 		}
-	} while ((valid_pair == 0) && (try < 100));
+	} while ((valid_pair == 0) && (try < MAX_TRY_VALID_PAIR));
 	
-	if (try == 100 )
+	if (try == MAX_TRY_VALID_PAIR )
 	{
-		fprintf (stderr, "\tAttempt to generate a valid pair failed after 100 tries\n");
+		fprintf (stderr, "\tAttempt to generate a valid pair failed after %d tries\n", MAX_TRY_VALID_PAIR);
 		fprintf (stderr, "\tPlease modify the options or review the quality of this reference sequences\n");
 		exit(EXIT_FAILURE);
 	}
