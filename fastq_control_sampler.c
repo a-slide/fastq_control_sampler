@@ -22,6 +22,7 @@
 #include <time.h>
 #include <string.h>
 #include <ctype.h>
+#include "ptr_allocation.h"
 #include "fastq_control_sampler.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -36,11 +37,10 @@ int main(int argc, char** argv) {
 	// Import the differents reference sequence contained in fasta files
 	list_seq = create_ref_list (argv, argc-1);
 	// Print valued contained in the list
-	/// print_list (list_seq);
+	///print_list (list_seq);
 	// Generate fastq files R1 and R2 from the reference sequences
 	generate_fastq (list_seq);
-	
-	return 0;
+	return 1;
 }
  
 ////////////////////////////////////////////////////////////////////////
@@ -51,8 +51,8 @@ void usage (char* nom_prog, int argc)
 	if (argc < 2)
 	{
 		fprintf (stderr, "Usage : %s [ref_1.fa] [ref_2.fa] ... [ref_n.fa]\n", nom_prog);
-		fprintf (stderr, "'N' containing sequences will be excluded from the analyses");
-		fprintf (stderr, "Unless the variable MASK_REPEAT is set to 0, lowercase characters will also be excluded\n");
+		fprintf (stderr, "\t'N' containing sequences will be excluded from the analyses\n");
+		fprintf (stderr, "\tUnless the variable MASK_REPEAT is set to 0, lowercase characters will also be excluded\n");
 		exit(EXIT_FAILURE);
 	}
 }
@@ -86,7 +86,7 @@ T_info* create_ref_list (char** argv, int nb_fasta)
 	for (i = 0; i < nb_fasta; i++) // for each reference fasta file
 	{
 		printf ("Processing File %s\n", argv[i+1]);
-		file = init_file_ptr( argv[i+1], "r"); // open fasta the current file
+		file = init_file_ptr( argv[i+1], "r"); // open the current fasta file
 		
 		n = nref(file); // output the number of ref seq
 		printf("\tThe file contain %d reference sequence(s)\n", n);
@@ -190,12 +190,7 @@ char* output_name (FILE* file, int size)
 	int c, i = 0;
 	char* name;
 	
-	name = malloc (sizeof(char) * (size + 1)); // Allocate the require space
-	if (name == NULL)
-	{
-		fprintf (stderr, "Allocation Error\n\n");
-		exit (EXIT_FAILURE);
-	}
+	name = malloc_char_string (size + 1);
 	
 	while ((c = fgetc(file)) != '\n') // get char by char
 		if (isprint(c) && c != '>') // register only if printable and different from >
@@ -214,14 +209,9 @@ char* output_seq (FILE* file, int size)
 	int c, i = 0;
 	char* seq;
 	
-	seq = malloc (sizeof(char) * (size + 1));
-	if (seq == NULL)
-	{
-		fprintf (stderr, "Allocation Error\n\n");
-		exit (EXIT_FAILURE);
-	}
+	seq = malloc_char_string (size + 1);
 	
-	if (MASK_REPEAT == 1) // in case of masking repeats
+	if (MASK_REPEAT == 1) // in case of masking of repeats
 	{
 		while (((c = fgetc(file)) != '>') && (c != EOF)) // continue until the next sequence or the end of file
 		{
@@ -236,7 +226,7 @@ char* output_seq (FILE* file, int size)
 		}
 	}
 	
-	else
+	else // in case of non masking of repeats
 	{
 		while (((c = fgetc(file)) != '>') && (c != EOF)) // continue until the next sequence or the end of file
 		{
@@ -313,52 +303,61 @@ void print_list (T_info* list_head)
 ////////////////////////////////////////////////////////////////////////
 void generate_fastq (T_info* list_head)
 {
-	int i,j;
-	FILE* file1 = init_file_ptr( "CONTROL_R1.fastq", "w"); // File for writing forward fastq reads
-	FILE* file2 = init_file_ptr( "CONTROL_R2.fastq", "w"); // File for writing reverse fastq reads
+	int i;
+	char* forward_read;
+	char* reverse_read;
+	char* forward_quality;
+	char* reverse_quality;
 	T_info* ptri = NULL;
+	FILE* file1 = NULL;
+	FILE* file2 = NULL;
+
 	ptri = list_head;
-	
+	file1 = init_file_ptr( "CONTROL_R1.fastq", "w"); // File for writing forward fastq reads
+	file2 =  init_file_ptr( "CONTROL_R2.fastq", "w"); // File for writing reverse fastq reads
 	srand (time(NULL)); // seed value for rand
-		
+	
 	while (ptri != NULL) // For each reference in the list
 	{
 		printf ("\nProcessing reference %s\n", ptri -> name);
+		forward_read = malloc_char_string (SIZE_READ + 1);
+		reverse_read =  malloc_char_string (SIZE_READ + 1);
+		forward_quality = malloc_char_string (SIZE_READ + 1);
+		reverse_quality =  malloc_char_string (SIZE_READ + 1);
 		
 		for (i = 0; i < NB_PAIR_BY_REF; i++)  // For i couple per reference
 		{
-			fprintf(file1, "@CONTROL_%s:%d\n", ptri -> name, i+1); // fastq title line
-			fprintf(file2, "@CONTROL_%s:%d\n", ptri -> name, i+1);
-			
-			generate_sequences (file1, file2, ptri, i+1); // generate randomly discovered pairs for each position in the read
-					
-			fprintf(file1, "\n+\n"); // separation sequence and quality score
-			fprintf(file2, "\n+\n");
-			
-			for (j = 0 ; j < SIZE_READ; j++)  // generate random quality string for each position in the read
-			{ 
-				fprintf(file1, "%c", QUALITY_SCORE [rand() % (strlen(QUALITY_SCORE) - 1)]);
-				fprintf(file2, "%c", QUALITY_SCORE [rand() % (strlen(QUALITY_SCORE) - 1)]);
+			// printf ("\nPair %d\t", i);
+			// If it is possible to select a valid pair
+			if (select_read_pair (ptri, &forward_read, &reverse_read) == 1)
+			{					
+				generate_random_quality (&forward_quality, &reverse_quality);
+				fprintf(file1, "@CONTROL_%s:%d\n%s\n+\n%s\n", ptri -> name, i+1, forward_read, forward_quality);
+				fprintf(file2, "@CONTROL_%s:%d\n%s\n+\n%s\n", ptri -> name, i+1, reverse_read, reverse_quality);
 			}
-			fprintf(file1, "\n");
-			fprintf(file2, "\n");
+			// If it is not possible to select a valid pair = skip this reference
+			else
+			{
+				printf("\tAttempt to generate a valid pair failed after %d tries\n", MAX_TRY_VALID_PAIR);
+				printf("\tSkipping to the next reference sequence\n");
+				break;
+			}
 		}
 		ptri = ptri -> next;
+		free (forward_read);
+		free (forward_quality);
+		free (reverse_read);
+		free (reverse_quality);
 	}
 	fclose (file1);
 	fclose (file2);
 }	
 
 ////////////////////////////////////////////////////////////////////////
-// generate_sequences = sample paired sequence within a given ref seq
+// select_read_pair
 ////////////////////////////////////////////////////////////////////////
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void generate_sequences (FILE* file1, FILE* file2, T_info* ptri, int numref)
+int select_read_pair (T_info* ptri, char** p_forward_read, char** p_reverse_read)
 {
 	int i, j, k;
 	int try = 0;
@@ -368,37 +367,41 @@ void generate_sequences (FILE* file1, FILE* file2, T_info* ptri, int numref)
 	
 	do // loop while finding a pair of reads with no 'N' in their sequences
 	{
-		try ++;
 		size_frag = rand() % (SIZE_MAX_SONIC - SIZE_MIN_SONIC) + SIZE_MIN_SONIC; //range SIZE_MIN_SONIC to SIZE_MAX_SONIC
 		pos_init = rand() % (ptri -> size_seq - size_frag); // range from 0 to (size_seq - taille_frag)
-		valid_pair = 1;
-		// scan all the lenght of the sequence
+		try ++;
+		valid_pair = 0;
 		
+		// scan all the lenght of the sequence
 		for (i = 0, j = pos_init, k = (pos_init + size_frag) ; i < SIZE_READ ; i++, j++, k--)
 		{
+			// If a N is found in the sequence try to resample an other pair somewher else
 			if ((ptri -> seq[j] == 'N') || (ptri -> seq[k] == 'N'))
-			{
-				valid_pair = 0;
 				break;
-			}
+			
+			// If no N is found in the sequence = the pair is valid and can be returned
 			else
 			{
-				fprintf(file1, "%c", ptri -> seq[j]);
-				fprintf(file2, "%c", complementary (ptri -> seq[k]));
+				p_forward_read [0][i] = ptri->seq[j];
+				p_reverse_read [0][i] = complementary (ptri->seq[k]);
+				valid_pair = 1;
 			}
 		}
 	} while ((valid_pair == 0) && (try < MAX_TRY_VALID_PAIR));
-	
-	if (try == MAX_TRY_VALID_PAIR )
+
+	if (valid_pair == 1)
 	{
-		fprintf (stderr, "\tAttempt to generate a valid pair failed after %d tries\n", MAX_TRY_VALID_PAIR);
-		fprintf (stderr, "\tPlease modify the options or review the quality of this reference sequences\n");
-		exit(EXIT_FAILURE);
+		//printf ("%d tries needed", try);
+		p_forward_read[0][SIZE_READ] = '\0';
+		p_reverse_read[0][SIZE_READ] = '\0';
+		return 1;
 	}
-	printf ("\tPair %d\t", numref);	
-	printf ("Number of tries = %d\n", try);
-	
-	return;
+	else
+	{
+		*p_forward_read = NULL;
+		*p_reverse_read = NULL;
+		return 0;
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -439,18 +442,20 @@ char complementary (char c)
 }
 
 ////////////////////////////////////////////////////////////////////////
-//  init_file_ptr = initialise un ptr de fichier en  mode r, w ou a   //
+// generate_random_quality
 ////////////////////////////////////////////////////////////////////////
 
- FILE* init_file_ptr (char* name, char* mode)
+void generate_random_quality (char** p_forward_quality, char** p_reverse_quality)
 {
-	FILE* file = NULL;
+	int i;
 	
-	file = fopen (name, mode);
-	if (file == NULL)
-	{
-		fprintf (stderr, "Initialisation of %s impossible\n\n", name );
-		exit (EXIT_FAILURE);
+	for (i = 0 ; i < SIZE_READ; i++)  // generate random quality string for each position in the read
+	{ 
+		p_forward_quality[0][i] = (QUALITY_SCORE [rand() % (strlen(QUALITY_SCORE) - 1)]);
+		p_reverse_quality[0][i] = (QUALITY_SCORE [rand() % (strlen(QUALITY_SCORE) - 1)]);
 	}
-	return file;
+	p_forward_quality[0][SIZE_READ] = '\0';
+	p_reverse_quality[0][SIZE_READ] = '\0';
+	
+	return;
 }
