@@ -2,8 +2,9 @@
 #include <stdlib.h>
 #include "ptr_allocation.h"
 
+/*
 // Main de test des fonctions
-/*int main (void)
+int main (void)
 { // Main de test des fonctions
 	char* char_string;
 	char** char_mat;
@@ -119,6 +120,24 @@ char** malloc_char_mat (int dim1, int dim2)
 	return mat;
 }
 
+void print_char_mat (char** mat, int dim1, int dim2)
+{
+	int i,j;
+	
+	printf("\n");
+	for (i = 0 ; i < dim1 ; i++) 
+	{
+		printf("#%d\t", i); // Line index
+		for (j = 0 ; j < dim2 ; j++) // Impression des valeurs du tableau
+		{
+			printf("%c ", mat [i][j]);
+		}
+		printf("\n");
+	}
+	printf("\n");
+	return;
+}
+
 void free_char_mat (char** mat, int dim1)
 {
 	int i;
@@ -153,6 +172,27 @@ char*** malloc_char_array (int dim1, int dim2, int dim3)
 		}
 	}
 	return array;
+}
+
+void print_char_array (char*** array, int dim1, int dim2, int dim3)
+{
+	int i, j, k ;
+	
+	for (i = 0 ; i < dim1 ; i++) 
+	{
+		printf("x = %d\n", i);
+		for (j = 0 ; j < dim2 ; j++) 
+		{
+			printf("#%d\t", j); // Line index
+			for (k = 0 ; k < dim3 ; k++) // Impression des valeurs du tableau
+			{
+				printf("%c ", array [i][j][k]);
+			}
+			printf("\n");
+		}
+		printf("\n");
+	}
+	return;
 }
 
 void free_char_array (char*** array, int dim1, int dim2)
@@ -197,6 +237,18 @@ int* calloc_int_line (int dim1)
 	return line;
 }
 
+void print_int_line (int* line, int dim1)
+{
+	int i;
+	
+	printf("\n");
+	for (i = 0 ; i < dim1 ; i++) 
+		printf("%d ", line [i]);
+
+	printf("\n");
+	return;
+}
+
 void free_int_line (int* line)
 {
 	free (line);
@@ -235,6 +287,24 @@ int** calloc_int_mat (int dim1, int dim2)
 		if (mat[i] == NULL) error_and_exit();
 	}	
 	return mat;
+}
+
+void print_int_mat (int** mat, int dim1, int dim2)
+{
+	int i,j;
+	
+	printf("\n");
+	for (i = 0 ; i < dim1 ; i++) 
+	{
+		printf("#%d\t", i); // Line index
+		for (j = 0 ; j < dim2 ; j++) // Impression des valeurs du tableau
+		{
+			printf("%d ", mat [i][j]);
+		}
+		printf("\n");
+	}
+	printf("\n");
+	return;
 }
 
 void free_int_mat (int** mat, int dim1)
@@ -295,6 +365,27 @@ int*** calloc_int_array (int dim1, int dim2, int dim3)
 	return array;
 }
 
+void print_int_array (int*** array, int dim1, int dim2, int dim3)
+{
+	int i, j, k ;
+	
+	for (i = 0 ; i < dim1 ; i++) 
+	{
+		printf("x = %d\n", i);
+		for (j = 0 ; j < dim2 ; j++) 
+		{
+			printf("#%d\t", j); // Line index
+			for (k = 0 ; k < dim3 ; k++) // Impression des valeurs du tableau
+			{
+				printf("%d ", array [i][j][k]);
+			}
+			printf("\n");
+		}
+		printf("\n");
+	}
+	return;
+}
+
 void free_int_array (int*** array, int dim1, int dim2)
 {
 	int i, j;
@@ -338,6 +429,18 @@ double* calloc_double_line (int dim1)
 	return line;
 }
 
+void print_double_line (double* line, int dim1)
+{
+	int i;
+	
+	printf("\n");
+	for (i = 0 ; i < dim1 ; i++) 
+		printf("%.2e ", line [i]);
+
+	printf("\n");
+	return;
+}
+
 void free_double_line (double* line)
 {
 	free (line);
@@ -376,6 +479,24 @@ double** calloc_double_mat (int dim1, int dim2)
 		if (mat[i] == NULL) error_and_exit();
 	}	
 	return mat;
+}
+
+void print_double_mat (double** mat, int dim1, int dim2)
+{
+	int i,j;
+	
+	printf("\n");
+	for (i = 0 ; i < dim1 ; i++) 
+	{
+		printf("#%d\t", i); // Line index
+		for (j = 0 ; j < dim2 ; j++) // Impression des valeurs du tableau
+		{
+			printf("%.2e ", mat [i][j]);
+		}
+		printf("\n");
+	}
+	printf("\n");
+	return;
 }
 
 void free_double_mat (double** mat, int dim1)
@@ -436,6 +557,27 @@ double*** calloc_double_array (int dim1, int dim2, int dim3)
 	return array;
 }
 
+void print_double_array (double*** array, int dim1, int dim2, int dim3)
+{
+	int i, j, k ;
+	
+	for (i = 0 ; i < dim1 ; i++) 
+	{
+		printf("x = %d\n", i);
+		for (j = 0 ; j < dim2 ; j++) 
+		{
+			printf("#%d\t", j); // Line index
+			for (k = 0 ; k < dim3 ; k++) // Impression des valeurs du tableau
+			{
+				printf("%.2e ", array [i][j][k]);
+			}
+			printf("\n");
+		}
+		printf("\n");
+	}
+	return;
+}
+
 void free_double_array (double*** array, int dim1, int dim2)
 {
 	int i, j;
@@ -479,4 +621,26 @@ void error_and_exit()
 {
 	fprintf (stderr, "Memory allocation error\n\n");
 	exit (EXIT_FAILURE);
+}
+
+////////////////////////////////////////////////////////////////////////
+// ENCADRE = encadre un chaine de charactere par des #
+////////////////////////////////////////////////////////////////////////
+
+void encadre (char* name)
+{
+	int i;
+	
+	printf("\n\n");
+	
+	for (i = 0; i < 75; i++)
+		printf("#");
+		
+	printf("\n# %s\n", name);
+
+	for (i = 0; i < 75; i++)
+		printf("#");
+	
+	printf("\n\n");
+	return;
 }
