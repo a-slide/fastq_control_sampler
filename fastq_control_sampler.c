@@ -24,6 +24,7 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <limits.h>
+
 #include "ptr_allocation.h"
 #include "fastq_control_sampler.h"
 
@@ -37,7 +38,7 @@ int main(int argc, char** argv) {
 	int optch;
     extern int opterr;
  
-    char format[] = "Mmp:q:e:s:l:u:n:r:v:ah";
+    char format[] = "Mmp:q:e:s:l:n:u:r:v:ah";
     opterr = 1;
  
     while ((optch = getopt(argc, argv, format)) != -1)
@@ -57,6 +58,10 @@ int main(int argc, char** argv) {
             SIZE_READ = atoi(optarg);
             if (SIZE_READ < 1) usage(argv[0]);
             break;
+        case 'n':
+            NB_PAIRS = atoi(optarg);
+            if (NB_PAIRS < 0) usage(argv[0]);
+            break;
          case 'p':
             MIN_QUAL = atoi(optarg);
             if ((MIN_QUAL < 1) || (MAX_QUAL > 40)) usage(argv[0]);
@@ -72,10 +77,6 @@ int main(int argc, char** argv) {
         case 'u':
             SIZE_MAX_SONIC = atoi(optarg);
             if ((SIZE_MIN_SONIC < SIZE_READ) || (SIZE_MAX_SONIC < SIZE_MIN_SONIC)) usage(argv[0]);
-			break;
-        case 'n':
-            NB_PAIR_BY_REF = atoi(optarg);
-            if (NB_PAIR_BY_REF < 1) usage(argv[0]);
 			break;
         case 'r':
             SIZE_OF_RANDOM_REF = atoi(optarg);
@@ -101,7 +102,6 @@ int main(int argc, char** argv) {
 	printf ("Maximal PHRED quality in quality string: %d\n", MAX_QUAL);
 	printf ("Minimal PHRED quality in quality string: %d\n", MIN_QUAL);
 	printf ("Frequency of errors in sequence strings: %f\n", ERR_FREQ);
-    printf ("Max Number of pairs to be generated for each reference sequences (if possible) : %d\n", NB_PAIR_BY_REF);
     printf ("Maximum number of tries to generate a valid read pair : %d\n", MAX_TRY_VALID_PAIR);
   	printf ("Pairs %s selected in repeat regions\n", ((MASK_REPEAT == 1) ? "will not be" : "may be"));
     printf ("Fasta files %s be created\n", ((FASTA == 1) ? "will also" : "won't"));
@@ -114,8 +114,8 @@ int main(int argc, char** argv) {
 	list_seq = create_ref_list (argv, optind, nb_arg); 
 	
 	// Print valued contained in the list
-	///encadre ("LIST OF REFERENCES IMPORTED");ln
-	///print_list (list_seq);
+	encadre ("LIST OF REFERENCES IMPORTED");
+	print_list (list_seq);
 	
 	// Generate fastq files R1 and R2 from the reference sequences
 	encadre ("SELECTION OF READ PAIRS AND CREATION OF FASTQ FILES");
@@ -132,7 +132,7 @@ int main(int argc, char** argv) {
 void usage (char* prog_name)
 {
 	
-	fprintf (stderr, "\nUSAGE:\t%s [M S <int> L <int> U <int> N <int> R <int> V <int> h ], [FASTA FILE]..\n\n", prog_name);
+	fprintf (stderr, "\nUSAGE:\t%s [M S <int> L <int> U <int> N <int> R <int> V <int> h ], [FASTA 1] [NB_PAIR 1] [FASTA 2] [NB_PAIR 2]..\n\n", prog_name);
 	
 	fprintf (stderr, "DESCRIPTION\n\n\
 	Generate control pair end fastq files from DNA fasta references and a randomly generated reference\n\n\
@@ -145,6 +145,7 @@ void usage (char* prog_name)
 	-M	Exclude repeat regions (lowercase characters) during fastq sampling (option by defaut)\n\
 	-m	Include repeat regions (lowercase characters) during fastq sampling\n\
 		The options -M et -m are incompatible (in case of conflict -M will be used)\n\n\
+	-n 	Number of pairs to be generated for the random reference (by default = 100)\n\
 	-e	Frequency of errors per base in fastq (by default = 0.01)\n\
 		The value must be chosen between 0 and 1\n\n\
 	-p	Minimal PHRED quality in fastq quality string. Min = 1, Max = 40 (by default = 30)\n\
@@ -154,8 +155,6 @@ void usage (char* prog_name)
 	-l	Lower size of fragments obtained after sonication (by default = 200)\n\
 	-u	Upper size of fragments obtained after sonication (by default = 600)\n\
 		Upper size must be > or = than Lower size and both must be > or = than the size of reads\n\n\
-	-n	Maximal Number of pairs to be generated for each reference sequences (if possible)\n\
-		The value must be strictly positive (by default = 10)\n\n\
 	-v	Maximal Number of tries to obtain a valid pair (ie with no 'N')\n\
 		The value must be strictly positive (by default = 100)\n\n\
 	-r	Size of random reference to be generated\n\
@@ -164,7 +163,7 @@ void usage (char* prog_name)
 	-h	Print this usefull help screen\n\n");
 
 	fprintf (stderr, "EXEMPLES\n\n\
-	%s -M -S 200 -L 400 -U 1000 -N 10 -V 10 fasta_file1.fa fasta_file2.fa \n\n", prog_name);
+	%s -M -S 200 -L 400 -U 1000 -N 10 -V 10 fasta_file1.fa 1000 fasta_file2.fa 200 \n\n", prog_name);
 	
 	exit (EXIT_FAILURE);
 }
@@ -173,10 +172,11 @@ void usage (char* prog_name)
 /// create_ref_list = import fasta ref genomes within a structure tab
 /// /////////////////////////////////////////////////////////////////////
 
-T_info* create_ref_list (char** argv, int start_index, int nb_fasta)
+T_info* create_ref_list (char** argv, int start_index, int nb_arg)
 {
 	int i, j;
-	int n;
+	int n, total_seq;
+	ulong total_size; // for long genomes
 	FILE* file = NULL;
 	T_info* pHead = NULL;
 	T_info* ptri = NULL;
@@ -184,42 +184,51 @@ T_info* create_ref_list (char** argv, int start_index, int nb_fasta)
 	
 	// ADDITION OF A RANDOM REFERENCE
 	printf ("Generating a random reference\n\n");
-	ptrj = create_info_cell();
-	ptrj -> size_name = 16;
-	ptrj -> name = "random_reference";
-	ptrj -> size_seq = SIZE_OF_RANDOM_REF;
-	ptrj -> seq = generate_random_ref(SIZE_OF_RANDOM_REF);
-	ptrj -> next = NULL;
+	ptri = create_info_cell();
+	ptri -> nb_seq = NB_PAIRS;
+	ptri -> size_name = 16;
+	ptri -> name = "random_reference";
+	ptri -> size_seq = SIZE_OF_RANDOM_REF;
+	ptri -> seq = generate_random_ref(SIZE_OF_RANDOM_REF);
+	ptri -> next = NULL;
 	
-	pHead = ptrj; // the list head now point to the adress of the first cell until the end of the function
-	ptri = ptrj; // ptri point to the first cell for now but will move latter
+	pHead = ptri; // the list head now point to the adress of the first cell until the end of the function
 	
-	if (nb_fasta > 0) // si l'utilisateur a indiqué des fichiers fasta en paramètre
+	if (nb_arg > 0) // si l'utilisateur a indiqué des fichiers fasta en paramètre
 	{
 		// DISCOVERY AND ADDITION OF REFERENCES CONTAINED IN THE REFERENCE FASTA FILES
-		for (i = 0; i < nb_fasta; i++) // for each reference fasta file
+		for (i = 0; i < nb_arg; i+=2) // for each reference fasta file
 		{
-			printf ("Processing File %s\n", argv[start_index + i]);
+			printf ("Processing File %s\tNumber of sequence to generate = %d\n", argv[start_index + i], atoi(argv[start_index + 1 + i]));
+			total_seq = atoi(argv[start_index +1 + i]);
+			total_size = 0;
+			ptrj = ptri;
+			
 			file = init_file_ptr( argv[start_index + i], "r"); // open the current fasta file
 			
 			n = nref(file); // output the number of ref seq
 			printf("\tThe file contains %d reference sequence(s)\n", n);
-			for (j = 0; j < n ; j++) // for each reference sequences within the current file
-
-			{
-				// Create a new cell
-				ptrj = create_info_cell();
-				// Fill fields of the new cell
-				ptrj -> size_name = (evaluate_name_size (file));
-				ptrj -> name = output_name(file, ptrj -> size_name);
-				printf ("\t\tImportation of the reference sequence : %s\n", ptrj -> name);
-				ptrj -> size_seq = (evaluate_seq_size (file));
-				verify_ref_size (ptrj -> size_seq, i);
-				ptrj -> seq =  output_seq(file, ptrj -> size_seq) ;
-				ptrj -> next = NULL;
-				// Link the new cell to the previous one and push forward the active cell pointer
-				ptri -> next = ptrj;
-				ptri = ptrj;
+			
+			// Loop to add each reference sequences within the current file
+			for (j = 0; j < n ; j++) {
+				ptri -> next = create_info_cell(); // Create a new cell
+				ptri = ptri -> next; // link the cell to the list
+				ptri -> size_name = (evaluate_name_size (file)); // Fill the cell
+				ptri -> name = output_name(file, ptri -> size_name);
+				printf ("\t\tImportation of the reference sequence : %s\n", ptri -> name);
+				ptri -> size_seq = (evaluate_seq_size (file));
+				ptri -> seq =  output_seq(file, ptri -> size_seq) ;
+				ptri -> next = NULL;
+				// Add the size of the ref to the counter of size of all the ref in the current fasta file
+				total_size += ptri -> size_seq;
+			}
+			// Loop to calculate the proportion of reads to be generated by reference
+			printf ("File %s\tTotal size of references = %ld\n,", argv[start_index + i], total_size);
+			for (j = 0; j < n ; j++) {
+				ptrj = ptrj -> next;
+				ptrj -> nb_seq = ((float)ptrj -> size_seq / total_size) * total_seq;
+				total_seq -= ptrj -> nb_seq;
+				total_size -= ptrj -> size_seq;
 			}
 			fclose(file);
 		}				
@@ -319,7 +328,6 @@ char* output_seq (FILE* file, int size)
 {
 	int c, i, j;
 	char* seq;
-	int found;
 	int max_index;
 	
 	// if mask repeat is true lowercase characters in DNA_BASES will not be considered
@@ -345,20 +353,6 @@ char* output_seq (FILE* file, int size)
 	}
 	seq [size] = '\0'; // add /0 at the end of line
 	return seq;
-}
-
-////////////////////////////////////////////////////////////////////////
-// verify_ref_size = evaluate if ref size is long enough
-////////////////////////////////////////////////////////////////////////
-
-void verify_ref_size (int size, int ref_nb)
-{
-	if (size <= SIZE_MAX_SONIC)
-	{
-		fprintf (stderr, "Size of reference %d too short to be parsed \n", ref_nb);
-		fprintf (stderr, "Use a longer reference or decrease SIZE_MAX_SONIC\n\n");
-		exit(EXIT_FAILURE);
-	}
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -390,13 +384,9 @@ void print_list (T_info* list_head)
 	
 	while (ptri != NULL)
 	{
-		printf("\nSize Name : %d", ptri -> size_name);
-		printf("\n%s", ptri -> name);
-		printf("\nSize Seq: %d", ptri -> size_seq);	
-		printf("\n%s\n", ptri -> seq);
-		
+		printf("\n%s \nSize %d \tNumber of pairs to be generated %d\n", ptri -> name, ptri -> size_seq, ptri -> nb_seq);
+	//	printf("\n%s\n", ptri -> seq);
 		ptri = ptri -> next;
-		
 	}
 	return;
 }
@@ -438,7 +428,7 @@ void generate_fastq (T_info* list_head)
 		forward_quality = malloc_char_string (SIZE_READ + 1);
 		reverse_quality =  malloc_char_string (SIZE_READ + 1);
 		
-		for (i = 0; i < NB_PAIR_BY_REF; i++)  // For i couple per reference
+		for (i = 0; i < ptri -> nb_seq; i++)  // For i couple per reference as defined previously
 		{
 			// If it is possible to select a valid pair
 			if (select_read_pair (ptri, &forward_read, &reverse_read) == 1)
@@ -486,26 +476,28 @@ int select_read_pair (T_info* ptri, char** p_forward_read, char** p_reverse_read
 	int size_frag;
 	int pos_init;
 	int valid_pair;
-
+	char forward_read [SIZE_READ + 1];
+	char reverse_read [SIZE_READ + 1];
+	
 	do // loop while finding a pair of reads with no 'N' in their sequences
 	{
 		size_frag = rand() % (SIZE_MAX_SONIC - SIZE_MIN_SONIC) + SIZE_MIN_SONIC; //range SIZE_MIN_SONIC to SIZE_MAX_SONIC
 		pos_init = rand() % (ptri -> size_seq - size_frag); // range from 0 to (size_seq - taille_frag)
 		try ++;
-		valid_pair = 0;
 		
 		// scan all the lenght of the sequence
 		for (i = 0, j = pos_init, k = (pos_init + size_frag) ; i < SIZE_READ ; i++, j++, k--)
 		{
 			// If a N is found in the sequence try to resample an other pair somewhere else
-			if ((ptri -> seq[j] == 'N') || (ptri -> seq[k] == 'N'))
+			if ((ptri -> seq[j] == 'N') || (ptri -> seq[k] == 'N')){
+				valid_pair = 0;
 				break;
-			
+			}
 			// If no N is found in the sequence, the reading of the sequence can continue
 			else
 			{
-				p_forward_read [0][i] = forward_seq(ptri->seq[j]);
-				p_reverse_read [0][i] = reverse_seq(ptri->seq[k]);
+				forward_read[i] = forward_seq(ptri->seq[j]);
+				reverse_read[i] = reverse_seq(ptri->seq[k]);
 				valid_pair = 1;
 			}
 		}
@@ -514,8 +506,10 @@ int select_read_pair (T_info* ptri, char** p_forward_read, char** p_reverse_read
 	if (valid_pair == 1) // if a valid pair had been found return 1 and the valid pair
 	{
 		//printf ("%d tries needed", try);
-		p_forward_read[0][SIZE_READ] = '\0';
-		p_reverse_read[0][SIZE_READ] = '\0';
+		forward_read[SIZE_READ] = '\0';
+		reverse_read[SIZE_READ] = '\0';
+		strcpy(*p_forward_read, forward_read);
+		strcpy(*p_reverse_read, reverse_read);
 		return 1;
 	}
 	else // if no valid pair was found return 0
@@ -545,41 +539,41 @@ char forward_seq(char c)
 			switch (rand() % 3)
 			{
 			  case 0 :
-				return 'T';
+				return 't';
 			  case 1 :
-				return 'C';
+				return 'c';
 			  case 2 :
-				return 'G';
+				return 'g';
 			}
 		  case 'T' :
 			switch (rand() % 3)
 			{
 			  case 0 :
-				return 'A';
+				return 'a';
 			  case 1 :
-				return 'C';
+				return 'c';
 			  case 2 :
-				return 'G';
+				return 'g';
 			}
 		  case 'C' :
 			switch (rand() % 3)
 			{
 			  case 0 :
-				return 'A';
+				return 'a';
 			  case 1 :
-				return 'T';
+				return 't';
 			  case 2 :
-				return 'G';
+				return 'g';
 			}
 		  case 'G' :
 			switch (rand() % 3)
 			{
 			  case 0 :
-				return 'A';
+				return 'a';
 			  case 1 :
-				return 'T';
+				return 't';
 			  case 2 :
-				return 'C';
+				return 'c';
 			}
 		}
 	}
@@ -598,13 +592,13 @@ char reverse_seq(char c)
 		switch (c)
 		{
 		  case 'A' :
-			return 'T';
+			return 't';
 		  case 'T' :
-			return 'A';
+			return 'a';
 		  case 'C' :
-			return 'G';
+			return 'g';
 		  case 'G' :
-			return 'C';		
+			return 'c';		
 		}
 	}
 	else // a random error will be added in the sequence
@@ -616,41 +610,41 @@ char reverse_seq(char c)
 			switch (rand() % 3)
 			{
 			  case 0 :
-				return 'A';
+				return 'a';
 			  case 1 :
-				return 'C';
+				return 'c';
 			  case 2 :
-				return 'G';
+				return 'g';
 			}
 		  case 'T' :
 			switch (rand() % 3)
 			{
 			  case 0 :
-				return 'T';
+				return 't';
 			  case 1 :
-				return 'C';
+				return 'c';
 			  case 2 :
-				return 'G';
+				return 'g';
 			}
 		  case 'C' :
 			switch (rand() % 3)
 			{
 			  case 0 :
-				return 'T';
+				return 't';
 			  case 1 :
-				return 'C';
+				return 'c';
 			  case 2 :
-				return 'A';
+				return 'a';
 			}
 		  case 'G' :
 			switch (rand() % 3)
 			{
 			  case 0 :
-				return 'T';
+				return 't';
 			  case 1 :
-				return 'G';
+				return 'g';
 			  case 2 :
-				return 'A';
+				return 'a';
 			}
 		}
 	}
