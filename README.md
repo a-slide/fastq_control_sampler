@@ -1,6 +1,9 @@
 fastq_control_sampler
 ======================
 
+THIS PROGRAM IS DEPRECATED AND NOT MAINTAINED
+
+
 This program generate control fastq files R1 and R2 from fasta reference sequences.
 In addition to the fasta reference provided by the users a scramble reference is also generated.
 These control files can be used to develop new bioinformatics pipelines for NGS. 
